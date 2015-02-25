@@ -1,4 +1,3 @@
-require ("math")
 local SMAP = {}
 
 function SMAP:init(data_key, ip, port)
@@ -7,6 +6,14 @@ function SMAP:init(data_key, ip, port)
         	archiver_ip= ip,
 		archiver_port= port,
                 cport = 49152, -- random port to send
+                
+  		csock = storm.net.udpsocket(cport, 
+		function(payload, from, port)
+--		print (string.format("echo from %s port %d: %s",from,port,payload))
+        	end),
+                smap_msg.key=key,
+                smap_msg.UUID=nil,
+                smap_msg.Readings=nil,
              }
       
 	setmetatable(obj,self)
@@ -14,45 +21,42 @@ function SMAP:init(data_key, ip, port)
 	return obj
 end
 
+function SMAP:create_msg(uuid,data)
 
-function SMAP:send(uuid, data)
-
-  	csock = storm.net.udpsocket(cport, 
-	function(payload, from, port)
---	print (string.format("echo from %s port %d: %s",from,port,payload))
-        end)
-       
-	local smap_msg={ 
+	self.smap_msg={ 
                 key= self.key, -- enter proper key
                 UUID= uuid,
                 Readings={storm.os.now(storm.os.SHIFT_0), data},
                }
-        
-	to_send= storm.mp.pack(smap_msg)
+  
+	to_send= storm.mp.pack(self.smap_msg)
+        return to_send
+end
+
+
+function SMAP:send(uuid, data)
+
+        local id=uuid
+        local d=data
+        to_send=create_msg(id,d)
         storm.net.sendto(csock, to_send, self.archiver_ip, self.archiver_port) 
         cord.await(storm.os.invokeLater, storm.os.SECOND) -- send data every second
 
 end --end send()
 
+
+--[[ no way to generate uuid as of now
 function SMAP:send_new(data)
 
 --generate uuid before sending
   	
-
-	csock = storm.net.udpsocket(self.cport, 
-	function(payload, from, port)
-	--print (string.format("echo from %s port %d: %s",from,port,payload))
-        end)
+        local uuid
+        storm.n.gen_uuid(uuid)
        
-	local smap_msg={ 
-                key= self.key,
-                UUID= uuid,
-                Readings={storm.os.now(storm.os.SHIFT_0), data},
-               }
-        
-	to_send= storm.mp.pack(smap_msg)
+        local d=data
+	to_send= create_msg(uuid,d)
         storm.net.sendto(csock, to_send, self.archiver_ip, self.archiver_port) 
         cord.await(storm.os.invokeLater, storm.os.SECOND) -- send data every second
 
-end --end send()
+end --end send()]]--
 
