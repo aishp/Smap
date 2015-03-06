@@ -1,32 +1,16 @@
 /**
  * This file defines C functions for sending smap data to an archiver
  */
+#define SMAP_SYMBOLS \
+	{ LSTRKEY("init"), LFUNCVAL(smap_init) }, \
+	{ LSTRKEY("send"), LFUNCVAL(smap_send) },\
+	{ LSTRKEY("create_msg"), LFUNCVAL(smap_create) },\
+	{ LSTRKEY("close"), LFUNCVAL(smap_close) },
 
-#include "lua.h"
-#include "lualib.h"
-#include "lauxlib.h"
-#include "lrotable.h"
-#include "auxmods.h"
-#include <platform_generic.h>
-#include <string.h>
-#include <stdint.h>
-#include <interface.h>
-#include <stdlib.h>
-#include <libstorm.h>
-#include <libmsgpack.c>
-/**
- * This is required for the LTR patch that puts module tables
- * in ROM
- */
-#define MIN_OPT_LEVEL 2
-#include "lrodefs.h"
-
-//Include some libs as C files into this file
-#include "natlib/util.c"
-#include "natlib/svcd.c"
-
-// headers for smap
 #include<time.h>
+#include"lrodefs.h"
+#define MIN_OPT_LEVEL 2
+
 
 //struct for smap
 struct smap
