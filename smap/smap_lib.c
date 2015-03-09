@@ -1,10 +1,9 @@
 /**
  * This file defines C functions for sending smap data to an archiver
  */
-#include<libstorm.h>
+#include<libstorm.c>
 #include<time.h>
-#include "lrodefs.h"
-#include<libmsgpack.c>
+
 int smap_send(lua_State *L);
 int udpsocket_callback(lua_State *L);
 int smap_close(lua_State *L);
