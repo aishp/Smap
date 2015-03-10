@@ -12,17 +12,14 @@ int smap_init(lua_State *L);
 
 
 #define SMAP_SYMBOLS \
-	{ LSTRKEY("init"), LFUNCVAL(smap_init) }, \
-	{ LSTRKEY("send"), LFUNCVAL(smap_send) },\
-	{ LSTRKEY("create_msg"), LFUNCVAL(smap_create_msg) },\
-	{ LSTRKEY("close"), LFUNCVAL(smap_close) },
+	{ LSTRKEY("smap_init"), LFUNCVAL(smap_init) }, \
 
 static const LUA_REG_TYPE smap_meta_map[] =
 {
    // { LSTRKEY( "init" ), LFUNCVAL ( smap_init ) },
-    { LSTRKEY( "send" ), LFUNCVAL ( smap_send ) },
-    { LSTRKEY( "create_msg" ), LFUNCVAL ( smap_create_msg ) },
-    { LSTRKEY( "close" ), LFUNCVAL ( smap_close ) },
+    { LSTRKEY( "smap_send" ), LFUNCVAL ( smap_send ) },
+    { LSTRKEY( "smap_close" ), LFUNCVAL ( smap_close ) },
+    { LSTRKEY( "__index"), LROVAL ( smap_meta_map)},
  { LNILKEY, LNILVAL }
 };
 
@@ -36,9 +33,9 @@ struct smap
  storm_socket_t *csock;
  const char *archiver_ip;
  uint16_t archiver_port;
- char *key;
+ const char *key;
  //changes for each entry
- float data;
+ uint16_t data;
 };
 
 //Meta map of smap
@@ -62,8 +59,6 @@ int smap_init(lua_State *L)
 {
  
  struct smap *obj=lua_newuserdata(L, sizeof(struct smap));
- int obj_index=lua_gettop(L); //store value of object for setting meta table
- int top;
  if(lua_isnil(L,1))
         obj->cport= 49152;
  else
@@ -76,50 +71,45 @@ int smap_init(lua_State *L)
  lua_pushnumber(L,obj->cport);
  lua_pushlightfunction(L,udpsocket_callback);
  lua_call(L,2,1);
- obj->csock = lua_touserdata(L, lua_gettop(L));
- top= lua_gettop(L);
- lua_pop(L, top-obj_index); //pop all items added after creation of object
+ obj->csock = lua_touserdata(L, -1);
+ 
+ lua_pop(L, 1); //pop all items added after creation of object
  lua_pushrotable(L, (void*)smap_meta_map);
  lua_setmetatable(L,-2);
-
+ printf("Key: %s\n", obj->key);
+ printf("Address of obj 0x%x\n", (uint32_t)obj);
  return 1;
 
 }
 
-int smap_create_msg(lua_State *L)
-{
- char smap_msg[100];
- struct smap *obj= lua_touserdata(L,1);
- printf("Key= %s UUID= %s, Data= %f\n", obj->key, obj->uuid, obj->data);
-//format table to pack
- sprintf(smap_msg, "{key= %s, UUID = %s,  Readings = { %d, %f }, }",obj->key, obj->uuid, (unsigned)time(NULL), obj->data);
-printf("Unpacked msg:");
-puts(smap_msg);
-//pack message
- lua_pushlightfunction(L, libmsgpack_mp_pack);
- lua_pushstring(L, smap_msg);
- lua_call(L, 1, 1);
-
- return 1;//returns packed smap msg
-
-}
- 
 //smap_send(uuid,data)
 //uuid:string or char*
 //data: float
 
 int smap_send (lua_State *L)
 {
-
+ printf("Entered smap_send\n");
  struct smap *obj= lua_touserdata(L,1);
+ printf("Key = %s\n", obj->key); 
+ char smap_msg[100];
+ printf("Key= %s UUID= %s, Data= %f\n", obj->key, obj->uuid, obj->data);
+printf("Address of object: 0x%x\n", (uint32_t)obj);
  obj->uuid= (char*)lua_tostring(L,2);
- obj->data= (float)lua_tonumber(L,3);
+ obj->data= (uint16_t)lua_tonumber(L,3);
 
+ printf("Key= %s UUID= %s, Data= %u\n", obj->key, obj->uuid, obj->data);
  lua_pushlightfunction(L, libstorm_net_sendto);
  lua_pushlightuserdata(L, obj->csock);
- lua_pushlightfunction(L, smap_create_msg);
- lua_pushlightuserdata(L, obj);
- lua_call(L,1,1);//call smap_create_message, pushes packed smap msg onto stack
+
+//format table to pack
+ sprintf(smap_msg, "{key= %s, UUID = %s,  Readings = { %d, %u }, }",obj->key, obj->uuid, (unsigned)time(NULL), obj->data);
+ printf("Unpacked msg:");
+ puts(smap_msg);
+//pack message
+ lua_pushlightfunction(L, libmsgpack_mp_pack);
+ lua_pushstring(L, smap_msg);
+ lua_call(L, 1, 1);
+
  printf("Packed msg: %s\n", lua_tostring(L,-1)); 
  lua_pushstring(L, obj->archiver_ip);
  lua_pushnumber(L, obj->archiver_port);
