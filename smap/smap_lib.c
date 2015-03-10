@@ -56,7 +56,7 @@ int udpsocket_callback(lua_State *L)
 }
 
 
-//smap_init(cport, key, archiver_ip, archiver_port, frequency)
+//smap_init(cport, key, archiver_ip, archiver_port)
 //cport: port on which you want to create the socket on client side
 int smap_init(lua_State *L)
 {
@@ -67,21 +67,18 @@ int smap_init(lua_State *L)
  if(lua_isnil(L,1))
         obj->cport= 49152;
  else
-        obj->cport=lua_tonumber(L,1); //pass value of cport, can be hard-coded
+        obj->cport=(uint16_t)lua_tonumber(L,1); //pass value of cport, can be hard-coded
 
  obj->key= (char*)luaL_checkstring(L,2);
  obj->archiver_ip= luaL_checkstring(L,3);
  obj->archiver_port= (uint16_t)luaL_checknumber(L,4);
-
  lua_pushlightfunction(L,libstorm_net_udpsocket);
- lua_pushvalue(L,obj->cport);
+ lua_pushnumber(L,obj->cport);
  lua_pushlightfunction(L,udpsocket_callback);
- lua_call(L,2,0);
-
+ lua_call(L,2,1);
  obj->csock = lua_touserdata(L, lua_gettop(L));
  top= lua_gettop(L);
  lua_pop(L, top-obj_index); //pop all items added after creation of object
-
  lua_pushrotable(L, (void*)smap_meta_map);
  lua_setmetatable(L,-2);
 
@@ -91,12 +88,13 @@ int smap_init(lua_State *L)
 
 int smap_create_msg(lua_State *L)
 {
- char *smap_msg="";
+ char smap_msg[100];
  struct smap *obj= lua_touserdata(L,1);
-
+ printf("Key= %s UUID= %s, Data= %f\n", obj->key, obj->uuid, obj->data);
 //format table to pack
  sprintf(smap_msg, "{key= %s, UUID = %s,  Readings = { %d, %f }, }",obj->key, obj->uuid, (unsigned)time(NULL), obj->data);
-
+printf("Unpacked msg:");
+puts(smap_msg);
 //pack message
  lua_pushlightfunction(L, libmsgpack_mp_pack);
  lua_pushstring(L, smap_msg);
@@ -120,9 +118,11 @@ int smap_send (lua_State *L)
  lua_pushlightfunction(L, libstorm_net_sendto);
  lua_pushlightuserdata(L, obj->csock);
  lua_pushlightfunction(L, smap_create_msg);
- lua_call(L,0,1);//call smap_create_message, pushes packed smap msg onto stack 
+ lua_pushlightuserdata(L, obj);
+ lua_call(L,1,1);//call smap_create_message, pushes packed smap msg onto stack
+ printf("Packed msg: %s\n", lua_tostring(L,-1)); 
  lua_pushstring(L, obj->archiver_ip);
- lua_pushvalue(L, obj->archiver_port);
+ lua_pushnumber(L, obj->archiver_port);
  lua_call(L, 4, 1); // call libstorm_net_sendto(csock, pay, srcip, srcport)
 
  if(lua_tonumber(L,-1)!=1)
