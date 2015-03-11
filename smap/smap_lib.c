@@ -28,13 +28,12 @@ static const LUA_REG_TYPE smap_meta_map[] =
 struct smap
 {
  //remains consistent throughout a session
- char *uuid;
  uint16_t cport;
- storm_socket_t *csock;
  const char *archiver_ip;
  uint16_t archiver_port;
  const char *key;
- //changes for each entry
+ storm_socket_t *csock;
+ char *uuid;
  uint16_t data;
 };
 
@@ -53,32 +52,50 @@ int udpsocket_callback(lua_State *L)
 }
 
 
-//smap_init(cport, key, archiver_ip, archiver_port)
+//smap_init(key, archiver_ip, archiver_port,cport)
 //cport: port on which you want to create the socket on client side
 int smap_init(lua_State *L)
 {
  
  struct smap *obj=lua_newuserdata(L, sizeof(struct smap));
- if(lua_isnil(L,1))
-        obj->cport= 49152;
- else
-        obj->cport=(uint16_t)lua_tonumber(L,1); //pass value of cport, can be hard-coded
+ size_t s_key,s_ip;
+ 
+ //get values of parameters passed from lua stack
+ const char *temp_key = lua_tolstring(L,1, &s_key);
+ const char *temp_ip = lua_tolstring(L,2,&s_ip);
+ const uint16_t temp_aport = (uint16_t)luaL_checknumber(L,3);
+ uint16_t cport_alloc;
 
- obj->key= (char*)luaL_checkstring(L,2);
- obj->archiver_ip= luaL_checkstring(L,3);
- obj->archiver_port= (uint16_t)luaL_checknumber(L,4);
+ if(lua_isnil(L,4))
+	cport_alloc = 49152;
+ else
+      	cport_alloc =  (uint16_t)lua_tonumber(L,4);
+ 
+ const uint16_t temp_cport= cport_alloc;
+ obj->key= malloc(s_key+1);
+ obj->archiver_ip=malloc(s_ip+1);
+ obj->archiver_port= malloc(sizeof(uint16_t));
+ obj->cport = malloc(sizeof(uint16_t));
+
+ //terminating '\0' for strings
+ memset(obj->archiver_ip, 0, s_ip+1);
+ memset(obj->key, 0, s_key+1);
+ 
+ memcpy(obj->key,temp_key, s_key+1);
+ memcpy(obj->archiver_ip, temp_ip, s_ip);
+ memcpy(&(obj->archiver_port), &temp_aport, sizeof(uint16_t));
+ memcpy(&(obj->cport), &temp_cport, sizeof(uint16_t));
+
  lua_pushlightfunction(L,libstorm_net_udpsocket);
  lua_pushnumber(L,obj->cport);
  lua_pushlightfunction(L,udpsocket_callback);
  lua_call(L,2,1);
  obj->csock = lua_touserdata(L, -1);
- 
  lua_pop(L, 1); //pop all items added after creation of object
  lua_pushrotable(L, (void*)smap_meta_map);
  lua_setmetatable(L,-2);
- printf("Key: %s\n", obj->key);
- printf("Address of obj 0x%x\n", (uint32_t)obj);
- return 1;
+ printf("Key: %s Archiver IP: %s Arch port: %u cport: %u\n", obj->key, obj->archiver_ip, obj->archiver_port, obj->cport);
+  return 1;
 
 }
 
