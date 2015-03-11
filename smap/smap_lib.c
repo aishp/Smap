@@ -72,10 +72,10 @@ int smap_init(lua_State *L)
       	cport_alloc =  (uint16_t)lua_tonumber(L,4);
  
  const uint16_t temp_cport= cport_alloc;
- obj->key= malloc(s_key+1);
- obj->archiver_ip=malloc(s_ip+1);
- obj->archiver_port= malloc(sizeof(uint16_t));
- obj->cport = malloc(sizeof(uint16_t));
+ obj->key= (char *)malloc(s_key+1);
+ obj->archiver_ip=(char *)malloc(s_ip+1);
+ obj->archiver_port= (uint16_t)malloc(sizeof(uint16_t));
+ obj->cport = (uint16_t)malloc(sizeof(uint16_t));
 
  //terminating '\0' for strings
  memset(obj->archiver_ip, 0, s_ip+1);
@@ -106,28 +106,54 @@ int smap_init(lua_State *L)
 int smap_send (lua_State *L)
 {
  printf("Entered smap_send\n");
+ 
+ size_t s_uuid;
  struct smap *obj= lua_touserdata(L,1);
- printf("Key = %s\n", obj->key); 
+ const char *temp_uuid = lua_tolstring(L,2, &s_uuid);
+ const uint16_t temp_data = (uint16_t)luaL_checknumber(L,3);
  char smap_msg[100];
- printf("Key= %s UUID= %s, Data= %f\n", obj->key, obj->uuid, obj->data);
-printf("Address of object: 0x%x\n", (uint32_t)obj);
- obj->uuid= (char*)lua_tostring(L,2);
- obj->data= (uint16_t)lua_tonumber(L,3);
+ 
+ obj->uuid = (char *)malloc(s_uuid+1);
+ obj->data = (uint16_t)malloc(sizeof(uint16_t));
 
- printf("Key= %s UUID= %s, Data= %u\n", obj->key, obj->uuid, obj->data);
+ memset(obj->uuid, 0, s_uuid+1);
+ 
+ memcpy(obj->uuid, temp_uuid, s_uuid+1);
+ memcpy(&(obj->data), &temp_data, sizeof(uint16_t));
+ 
+ printf("Key= %s cport = %u UUID= %s, Data= %u\n", obj->key,obj->cport, obj->uuid, obj->data);
  lua_pushlightfunction(L, libstorm_net_sendto);
  lua_pushlightuserdata(L, obj->csock);
 
-//format table to pack
- sprintf(smap_msg, "{key= %s, UUID = %s,  Readings = { %d, %u }, }",obj->key, obj->uuid, (unsigned)time(NULL), obj->data);
- printf("Unpacked msg:");
- puts(smap_msg);
-//pack message
- lua_pushlightfunction(L, libmsgpack_mp_pack);
- lua_pushstring(L, smap_msg);
- lua_call(L, 1, 1);
+ //get current time
+ lua_pushlightfunction(L, libstorm_os_now);
+ lua_pushnumber(L,1); // indicates storm.os.SHIFT_0
+ lua_call(L,1,1);
+ uint32_t now= (uint32_t)lua_tonumber(L,-1);
+ lua_pop(L,1);
 
- printf("Packed msg: %s\n", lua_tostring(L,-1)); 
+ //format table to pack
+ sprintf(smap_msg, "{key= %s, UUID = %s,  Readings = { %u, %u }, }",obj->key, obj->uuid, now, obj->data);
+ printf("Message before packing:");
+ puts(smap_msg);
+ //pack message
+ lua_pushlightfunction(L, libmsgpack_mp_pack);
+ lua_pushstring(L, (char *)smap_msg);
+ //char *tmsg= lua_tostring(L,-1);
+ //puts(tmsg);
+ lua_call(L, 1, 1);
+ printf("Packed msg: %s\n", lua_tostring(L,-1));
+ 
+ //debug code: check if msg gets packed
+ lua_pushlightfunction(L, libmsgpack_mp_unpack);
+ lua_pushvalue(L, -2);
+ lua_call(L,1,1);
+ char *unpack= lua_tostring(L,-1);
+ printf("Unpacked:");
+ puts(unpack);
+ lua_pop(L,1); 
+ //end of debug code 
+
  lua_pushstring(L, obj->archiver_ip);
  lua_pushnumber(L, obj->archiver_port);
  lua_call(L, 4, 1); // call libstorm_net_sendto(csock, pay, srcip, srcport)
@@ -137,12 +163,6 @@ printf("Address of object: 0x%x\n", (uint32_t)obj);
   printf("Send failure\n");
  }
 
- /*
- //call cord.await, send data every 1 second
- lua_pushlightfunction(L,libstorm_os_invoke_later);
- lua_pushnumber(L, (obj->frequency)*SECOND_TICKS);
- lua_call(L, 1, 0);
-*/
  return 0;
 }
 
