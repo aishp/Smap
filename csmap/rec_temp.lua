@@ -12,7 +12,7 @@ print("ip addr", ipaddrs)
 cport = 7
 csock = storm.net.udpsocket(cport, 
 			    function(payload, from, port)
-			       msg = storm.mp.unpack(pay)
+			       msg = storm.mp.unpack(payload)
 			       print (string.format("echo from %s port %d: %s",from,port,msg))
 			    end)
 
